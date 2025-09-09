@@ -2,8 +2,7 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    "../app/**/*.{js,ts,jsx,tsx}", // include your app folder
+    "./src/**/*.{js,jsx,ts,tsx}",  // ✅ Scans everything inside src
   ],
   theme: {
     extend: {},

@@ -83,8 +83,8 @@ export default function InventoryApp() {
 
         {/* Line Selection */}
         <div className="bg-white p-6 shadow rounded-xl">
-          <h2 className="text-lg font-semibold mb-4 text-slate-700">Select a Line</h2>
-          <div className="flex gap-3 flex-wrap">
+          <h2 className="text-xl font-bold mb-6 text-slate-700">Select a Line</h2>
+          <div className="flex flex-wrap gap-4">
             {lines.map((line) => (
               <button
                 key={line.id}
@@ -92,10 +92,10 @@ export default function InventoryApp() {
                   setSelectedLine(line);
                   setSelectedMachine(null);
                 }}
-                className={`px-4 py-2 rounded-lg border shadow-sm transition ${
+                className={`px-6 py-3 rounded-lg border shadow-md font-semibold text-lg transition ${
                   selectedLine?.id === line.id
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-50 hover:bg-gray-100"
+                    ? "bg-indigo-600 text-white scale-105"
+                    : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                 }`}
               >
                 {line.name}
@@ -110,15 +110,15 @@ export default function InventoryApp() {
             <h2 className="text-lg font-semibold flex items-center gap-2 mb-4 text-slate-700">
               <Layers className="w-5 h-5 text-blue-500" /> Machines in {selectedLine.name}
             </h2>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex flex-wrap gap-4">
               {machines.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => setSelectedMachine(m)}
-                  className={`px-4 py-2 rounded-lg border transition ${
+                  className={`px-6 py-3 rounded-lg border shadow-md font-semibold text-lg transition ${
                     selectedMachine?.id === m.id
-                      ? "bg-slate-800 text-white"
-                      : "bg-gray-50 hover:bg-gray-100"
+                      ? "bg-slate-800 text-white scale-105"
+                      : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                   }`}
                 >
                   {m.name}
@@ -126,9 +126,9 @@ export default function InventoryApp() {
               ))}
               <button
                 onClick={addMachine}
-                className="px-4 py-2 rounded-lg bg-green-600 text-white flex items-center gap-2 hover:bg-green-700 transition"
+                className="px-6 py-3 rounded-lg bg-green-600 text-white font-semibold flex items-center gap-2 hover:bg-green-700 transition"
               >
-                <Plus className="w-4 h-4" /> Add Machine
+                <Plus className="w-5 h-5" /> Add Machine
               </button>
             </div>
           </div>
@@ -213,9 +213,9 @@ export default function InventoryApp() {
             </div>
             <button
               onClick={addPart}
-              className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 transition"
+              className="mt-4 px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold flex items-center gap-2 hover:bg-blue-700 transition"
             >
-              <Plus className="w-4 h-4" /> Add Part
+              <Plus className="w-5 h-5" /> Add Part
             </button>
           </div>
         )}
