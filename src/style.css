@@ -1,0 +1,170 @@
+/* --- Layout shell (no Tailwind required) --- */
+
+:root {
+  --bg: #0b0b0b;          /* header background (black) */
+  --text: #ffffff;        /* header text */
+  --accent: #8ab4ff;      /* accent for “Smart” */
+  --page: #f6f7fb;        /* page background */
+  --hairline: #e5e7eb;    /* light separator line */
+  --shadow: 0 2px 14px rgba(0,0,0,0.15);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+.app-root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+}
+
+/* ===== Header ===== */
+.app-header {
+  position: ;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;   /* brand left, logo right */
+  /* CHANGED: tighter left pad, zero right pad, fixed height, hairline */
+  padding-left: 16px;
+  padding-right: 0;
+  height: 120px;
+  background: var(--bg);
+  color: var(--text);
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.brand {
+  font-size: 50px;        /* adjust this to make it bigger/smaller */
+  font-weight: 800;
+  letter-spacing: 1.6px;
+}
+
+.brand-accent {
+  color: var(--accent);
+}
+
+.brand-logo {
+  /* CHANGED: control by height, auto width; no extra right spacing */
+  height: 120px;           /* try 52–56px if you want it bigger */
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin-right: 0;
+}
+
+/* ===== Main area ===== */
+.app-main {
+  padding: 50px;
+}
+
+/* Optional placeholder styles */
+.placeholder {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+.placeholder h2 {
+  margin: 0 0 8px 0;
+}
+.placeholder code {
+  background: #f0f3fa;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* ---- Page shell ---- */
+.page-shell { min-height: 100vh; background: #f1f5f9; padding: 24px; }
+.container { max-width: 1100px; margin: 0 auto; display: grid; gap: 24px; }
+
+/* ---- Titles ---- */
+.page-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 28px; font-weight: 800; color: #0f172a; margin: 0 0 8px;
+}
+.title-icon { color: #4f46e5; }
+
+/* ---- Cards ---- */
+.card { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 6px 22px rgba(0,0,0,0.06); }
+.card-title { font-size: 18px; font-weight: 700; color: #334155; display: flex; align-items: center; gap: 8px; margin: 0 0 18px; }
+.sub-icon { color: #2563eb; }
+.sub-icon.purple { color: #7c3aed; }
+
+/* ---- Button groups ---- */
+.btn-group { display: flex; flex-wrap: wrap; gap: 16px; }
+
+/* ---- Pill buttons (shared) ---- */
+.pill-btn {
+  appearance: none; border: 1px solid #cbd5e1; background: #f1f5f9; color: #0f172a;
+  padding: 12px 18px; border-radius: 12px; font-weight: 700; font-size: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04); cursor: pointer;
+  transition: background .15s ease, transform .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.pill-btn:hover { background: #e2e8f0; }
+.pill-btn:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+
+.pill-btn.is-active {
+  background: #4f46e5; border-color: #4338ca; color: #fff; transform: scale(1.02);
+  box-shadow: 0 6px 18px rgba(79,70,229,0.28);
+}
+.pill-btn.is-active-dark {
+  background: #0f172a; border-color: #0b1220; color: #fff; transform: scale(1.02);
+  box-shadow: 0 6px 18px rgba(15,23,42,0.25);
+}
+
+.pill-btn.primary { background: #2563eb; border-color: #1e40af; color: #fff; }
+.pill-btn.primary:hover { background: #1d4ed8; }
+
+.pill-btn.is-action { background: #16a34a; border-color: #15803d; color: #fff; }
+.pill-btn.is-action:hover { background: #12853f; }
+
+.pill-btn.danger { background: #dc2626; border-color: #b91c1c; color: #fff; }
+.pill-btn.danger:hover { background: #c81e1e; }
+
+/* small variant */
+.pill-btn.sm { padding: 8px 12px; border-radius: 10px; font-size: 14px; }
+
+/* ---- Table ---- */
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.table thead th {
+  background: #e2e8f0; color: #334155; font-weight: 700; text-align: left; padding: 10px;
+  border-bottom: 1px solid #cbd5e1; font-size: 14px;
+}
+.table tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #0f172a; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr.row-alt td { background: #f8fafc; }
+.td-center { text-align: center; }
+
+/* ---- Inputs ---- */
+.input {
+  width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+.input.sm { width: 80px; }
+.mt { margin-top: 12px; }
+
+/* ---- Page background fallback (if you don’t use Tailwind) ---- */
+body { background: #f1f5f9; }
+
+.search-row {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.hl {
+  background: #fff3b0;       /* soft yellow */
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
