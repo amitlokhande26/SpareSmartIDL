@@ -54,6 +54,42 @@ export default function InventoryApp() {
   const [selectedLine, setSelectedLine] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
 
+  // Authentication (very simple localStorage-based)
+  const [authUser, setAuthUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("authUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const username = loginForm.username.trim();
+    const password = loginForm.password;
+    if (!username || !password) {
+      alert("Please enter username and password");
+      return;
+    }
+    // Demo credential. Change as needed.
+    if (username === "admin" && password === "admin") {
+      const user = { username };
+      localStorage.setItem("authUser", JSON.stringify(user));
+      setAuthUser(user);
+      return;
+    }
+    alert("Invalid credentials");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("authUser");
+    setAuthUser(null);
+    setSelectedLine(null);
+    setSelectedMachine(null);
+  };
+
   // 🔎 Search states
   const [machineQuery, setMachineQuery] = useState("");
   const [partQuery, setPartQuery] = useState("");
@@ -237,6 +273,48 @@ export default function InventoryApp() {
     }));
   };
 
+  // Login screen
+  if (!authUser) {
+    return (
+      <div className="page-shell">
+        <div className="container">
+          <div className="card" style={{ maxWidth: 420, margin: "64px auto" }}>
+            <h1 className="page-title" style={{ textAlign: "center" }}>
+              <Package size={28} className="title-icon" /> Sign in
+            </h1>
+            <form onSubmit={handleLogin}>
+              <div className="search-row">
+                <input
+                  className="input"
+                  placeholder="Username"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm((s) => ({ ...s, username: e.target.value }))}
+                />
+              </div>
+              <div className="search-row">
+                <input
+                  className="input"
+                  placeholder="Password"
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm((s) => ({ ...s, password: e.target.value }))}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <button type="submit" className="pill-btn primary">
+                  Sign in
+                </button>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 12, textAlign: "center", opacity: 0.8 }}>
+                Default creds: admin / admin
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-shell">
       <div className="container">
@@ -244,6 +322,11 @@ export default function InventoryApp() {
         <h1 className="page-title">
           <Package size={28} className="title-icon" /> Packaging Line Inventory
         </h1>
+        <div style={{ marginTop: 8, marginBottom: 16 }}>
+          <button onClick={handleLogout} className="pill-btn danger sm" title="Logout">
+            Signed in as {authUser.username} — Logout
+          </button>
+        </div>
 
         {/* Line Selection */}
         <div className="card">
