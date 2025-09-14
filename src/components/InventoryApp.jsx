@@ -93,9 +93,11 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
   // 🔎 Search states
   const [machineQuery, setMachineQuery] = useState("");
   const [partQuery, setPartQuery] = useState("");
+  const [aggregatedPartQuery, setAggregatedPartQuery] = useState("");
 
-  // View mode under the selected line (Machines | Checkweighers)
+  // View mode under the selected line (Machines | Checkweighers | AggregatedParts)
   const [viewMode, setViewMode] = useState("machines");
+  const [showAggregatedParts, setShowAggregatedParts] = useState(false);
 
   // Simple highlight helper
   const highlight = (text, q) => {
@@ -117,6 +119,7 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
     name: "",
     partNumber: "",
     qty: "",
+    minQuantity: "",
     location: "",
     lastChecked: "",
     nextDue: "",
@@ -214,6 +217,75 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
     return data.checkweighers.filter((c) => c.lineId === selectedLine.id);
   }, [data.checkweighers, selectedLine]);
 
+  // Aggregated parts by part number across all machines
+  const aggregatedParts = useMemo(() => {
+    const partMap = new Map();
+    
+    data.parts.forEach(part => {
+      const partNumber = part.partNumber?.trim();
+      if (!partNumber) return;
+      
+      if (partMap.has(partNumber)) {
+        const existing = partMap.get(partNumber);
+        existing.totalQty += part.qty || 0;
+        existing.minQuantity = Math.max(existing.minQuantity, part.minQuantity || 0);
+        existing.locations.push({
+          machineId: part.machineId,
+          qty: part.qty || 0,
+          location: part.location || '',
+          partId: part.id
+        });
+        existing.machines.add(part.machineId);
+        const machine = data.machines.find(m => m.id === part.machineId);
+        if (machine?.lineId) {
+          existing.lines.add(machine.lineId);
+        }
+      } else {
+        const machine = data.machines.find(m => m.id === part.machineId);
+        const line = machine ? data.lines.find(l => l.id === machine.lineId) : null;
+        
+        partMap.set(partNumber, {
+          partNumber,
+          name: part.name || '',
+          totalQty: part.qty || 0,
+          minQuantity: part.minQuantity || 0,
+          cost: part.cost || '',
+          others: part.others || '',
+          locations: [{
+            machineId: part.machineId,
+            qty: part.qty || 0,
+            location: part.location || '',
+            partId: part.id
+          }],
+          machines: new Set([part.machineId]),
+          lines: new Set(machine?.lineId ? [machine.lineId] : []),
+          lastChecked: part.lastChecked || '',
+          nextDue: part.nextDue || '',
+          lowStock: false
+        });
+      }
+    });
+    
+    // Convert to array and calculate low stock status
+    return Array.from(partMap.values()).map(part => ({
+      ...part,
+      machines: Array.from(part.machines),
+      lines: Array.from(part.lines),
+      lowStock: part.totalQty < part.minQuantity
+    }));
+  }, [data.parts, data.machines, data.lines]);
+
+  // Filtered aggregated parts
+  const aggregatedPartsFiltered = useMemo(() => {
+    if (!aggregatedPartQuery) return aggregatedParts;
+    const q = aggregatedPartQuery.toLowerCase();
+    return aggregatedParts.filter(part =>
+      (part.name || "").toLowerCase().includes(q) ||
+      (part.partNumber || "").toLowerCase().includes(q) ||
+      part.locations.some(loc => (loc.location || "").toLowerCase().includes(q))
+    );
+  }, [aggregatedParts, aggregatedPartQuery]);
+
   /** ----- Machines ----- **/
   const addMachine = () => {
     if (!selectedLine) return;
@@ -228,29 +300,45 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
   const addPart = () => {
     if (!selectedMachine) return;
 
+    if (!newPart.name.trim()) {
+      alert("Please enter Part Name");
+      return;
+    }
+
+    // Prompt for minimum quantity
+    const minQty = prompt(`Enter minimum quantity limit for "${newPart.name.trim()}":`, "1");
+    if (minQty === null) return; // User cancelled
+    
+    const minQuantity = Number(minQty) || 0;
+    if (minQuantity < 0) {
+      alert("Minimum quantity cannot be negative");
+      return;
+    }
+
     const payload = {
       id: Date.now(),
       machineId: selectedMachine.id,
       name: newPart.name.trim(),
       partNumber: newPart.partNumber.trim(),
       qty: Number(newPart.qty || 0),
+      minQuantity: minQuantity,
       location: newPart.location.trim(),
       lastChecked: newPart.lastChecked || "",
       nextDue: newPart.nextDue || "",
       cost: newPart.cost === "" ? "" : Number(newPart.cost),
       others: newPart.others.trim(),
+      lowStock: false, // Will be calculated based on qty vs minQuantity
     };
 
-    if (!payload.name) {
-      alert("Please enter Part Name");
-      return;
-    }
+    // Calculate low stock status
+    payload.lowStock = payload.qty < payload.minQuantity;
 
     setData((prev) => ({ ...prev, parts: [...prev.parts, payload] }));
     setNewPart({
       name: "",
       partNumber: "",
       qty: "",
+      minQuantity: "",
       location: "",
       lastChecked: "",
       nextDue: "",
@@ -262,7 +350,17 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
   const updatePart = (id, field, value) => {
     setData((prev) => ({
       ...prev,
-      parts: prev.parts.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+      parts: prev.parts.map((p) => {
+        if (p.id === id) {
+          const updatedPart = { ...p, [field]: value };
+          // Recalculate low stock status when quantity changes
+          if (field === 'qty') {
+            updatedPart.lowStock = Number(value) < (p.minQuantity || 0);
+          }
+          return updatedPart;
+        }
+        return p;
+      }),
     }));
   };
 
@@ -435,14 +533,18 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
                       {globalSearch.parts.map((part, idx) => {
                         const machine = data.machines.find(m => m.id === part.machineId);
                         const line = machine ? data.lines.find(l => l.id === machine.lineId) : null;
+                        const isLowStock = part.lowStock || (part.qty < (part.minQuantity || 0));
                         return (
-                          <tr key={part.id} className={idx % 2 ? "row-alt" : ""}>
-                            <td>{highlight(part.name || "", globalSearchQuery)}</td>
+                          <tr key={part.id} className={`${idx % 2 ? "row-alt" : ""} ${isLowStock ? "low-stock-row" : ""}`}>
+                            <td>
+                              {highlight(part.name || "", globalSearchQuery)}
+                              {isLowStock && <span className="low-stock-indicator">Low Stock</span>}
+                            </td>
                             <td>{highlight(part.partNumber || "", globalSearchQuery)}</td>
                             <td>{machine?.name || 'Unknown'}</td>
                             <td>{line?.name || 'Unknown'}</td>
                             <td>{highlight(part.location || "", globalSearchQuery)}</td>
-                            <td className="td-center">{part.qty || 0}</td>
+                            <td className={`td-center ${isLowStock ? "low-stock-qty" : ""}`}>{part.qty || 0}</td>
                           </tr>
                         );
                       })}
@@ -488,6 +590,106 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
             )}
           </div>
         )}
+
+        {/* Global Aggregated Parts View */}
+        <div className="card">
+          <h2 className="card-title">
+            📦 Aggregated Parts
+            <button 
+              onClick={() => setShowAggregatedParts(!showAggregatedParts)}
+              className="pill-btn primary sm"
+              style={{ marginLeft: '12px' }}
+            >
+              {showAggregatedParts ? 'Hide' : 'Show'} Aggregated View
+            </button>
+          </h2>
+          <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '16px' }}>
+            View total quantities for parts with the same part number across all machines and lines
+          </p>
+          
+          {showAggregatedParts && (
+            <>
+              <div className="search-row">
+                <input
+                  className="input"
+                  placeholder="Search aggregated parts by name, part number, or location..."
+                  value={aggregatedPartQuery}
+                  onChange={(e) => setAggregatedPartQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Part Name</th>
+                      <th>Part Number</th>
+                      <th>Total Qty</th>
+                      <th>Min Qty</th>
+                      <th>Used In</th>
+                      <th>Locations</th>
+                      <th>Cost</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aggregatedPartsFiltered.map((part, idx) => {
+                      const isLowStock = part.lowStock;
+                      return (
+                        <tr key={part.partNumber} className={`${idx % 2 ? "row-alt" : ""} ${isLowStock ? "low-stock-row" : ""}`}>
+                          <td>
+                            {highlight(part.name, aggregatedPartQuery)}
+                            {isLowStock && <span className="low-stock-indicator">Low Stock</span>}
+                          </td>
+                          <td>{highlight(part.partNumber, aggregatedPartQuery)}</td>
+                          <td className={`td-center ${isLowStock ? "low-stock-qty" : ""}`}>
+                            {part.totalQty}
+                          </td>
+                          <td className="td-center">{part.minQuantity}</td>
+                          <td>
+                            <div style={{ fontSize: '12px' }}>
+                              {part.machines.map(machineId => {
+                                const machine = data.machines.find(m => m.id === machineId);
+                                const line = machine ? data.lines.find(l => l.id === machine.lineId) : null;
+                                return (
+                                  <div key={machineId} style={{ marginBottom: '2px' }}>
+                                    <strong>{machine?.name}</strong>
+                                    {line && <span style={{ color: '#64748b' }}> ({line.name})</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px' }}>
+                              {part.locations.map((loc, locIdx) => {
+                                const machine = data.machines.find(m => m.id === loc.machineId);
+                                return (
+                                  <div key={locIdx} style={{ marginBottom: '2px' }}>
+                                    <strong>{loc.qty}</strong> @ {highlight(loc.location, aggregatedPartQuery)}
+                                    {machine && <span style={{ color: '#64748b' }}> ({machine.name})</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="td-center">{part.cost || '-'}</td>
+                          <td className="td-center">
+                            {isLowStock ? (
+                              <span className="low-stock-indicator">Low Stock</span>
+                            ) : (
+                              <span style={{ color: '#16a34a', fontWeight: '600' }}>In Stock</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Line Selection */}
         <div className="card">
@@ -607,62 +809,68 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {partsFiltered.map((p, idx) => (
-                        <tr key={p.id} className={idx % 2 ? "row-alt" : ""}>
-                          <td>{highlight(p.name || "", partQuery)}</td>
-                          <td>{highlight(p.partNumber || "", partQuery)}</td>
-                          <td className="td-center">
-                            <input
-                              type="number"
-                              value={p.qty ?? 0}
-                              onChange={(e) => updatePart(p.id, "qty", Number(e.target.value))}
-                              className="input sm"
-                            />
-                          </td>
-                          <td>{highlight(p.location || "", partQuery)}</td>
-                          <td>
-                            <input
-                              type="date"
-                              value={p.lastChecked || ""}
-                              onChange={(e) => updatePart(p.id, "lastChecked", e.target.value)}
-                              className="input"
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="date"
-                              value={p.nextDue || ""}
-                              onChange={(e) => updatePart(p.id, "nextDue", e.target.value)}
-                              className="input"
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={p.cost ?? ""}
-                              onChange={(e) =>
-                                updatePart(
-                                  p.id,
-                                  "cost",
-                                  e.target.value === "" ? "" : Number(e.target.value)
-                                )
-                              }
-                              className="input sm"
-                            />
-                          </td>
-                          <td>{highlight(p.others || "", partQuery)}</td>
-                          <td className="td-center">
-                            <button
-                              onClick={() => deletePart(p.id)}
-                              className="pill-btn danger sm"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {partsFiltered.map((p, idx) => {
+                        const isLowStock = p.lowStock || (p.qty < (p.minQuantity || 0));
+                        return (
+                          <tr key={p.id} className={`${idx % 2 ? "row-alt" : ""} ${isLowStock ? "low-stock-row" : ""}`}>
+                            <td>
+                              {highlight(p.name || "", partQuery)}
+                              {isLowStock && <span className="low-stock-indicator">Low Stock</span>}
+                            </td>
+                            <td>{highlight(p.partNumber || "", partQuery)}</td>
+                            <td className="td-center">
+                              <input
+                                type="number"
+                                value={p.qty ?? 0}
+                                onChange={(e) => updatePart(p.id, "qty", Number(e.target.value))}
+                                className={`input sm ${isLowStock ? "low-stock-qty" : ""}`}
+                              />
+                            </td>
+                            <td>{highlight(p.location || "", partQuery)}</td>
+                            <td>
+                              <input
+                                type="date"
+                                value={p.lastChecked || ""}
+                                onChange={(e) => updatePart(p.id, "lastChecked", e.target.value)}
+                                className="input"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="date"
+                                value={p.nextDue || ""}
+                                onChange={(e) => updatePart(p.id, "nextDue", e.target.value)}
+                                className="input"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={p.cost ?? ""}
+                                onChange={(e) =>
+                                  updatePart(
+                                    p.id,
+                                    "cost",
+                                    e.target.value === "" ? "" : Number(e.target.value)
+                                  )
+                                }
+                                className="input sm"
+                              />
+                            </td>
+                            <td>{highlight(p.others || "", partQuery)}</td>
+                            <td className="td-center">
+                              <button
+                                onClick={() => deletePart(p.id)}
+                                className="pill-btn danger sm"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
 
                       {/* Inline Add Part row */}
                       <tr className={parts.length % 2 ? "row-alt" : ""}>

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Search } from "lucide-react";
 import InventoryApp from "./components/InventoryApp"; // keep if you have it; otherwise it'll still render the header
 import "./style.css"; // make sure this exists (see below)
 
@@ -32,7 +33,8 @@ export default function App() {
             onClick={handleGlobalSearch}
             title="Global Search"
           >
-            🔍 Global Search
+            <Search size={16} />
+            <span>Global Search</span>
           </button>
         </div>
       </header>
