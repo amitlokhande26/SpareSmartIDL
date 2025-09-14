@@ -51,13 +51,84 @@ html, body, #root {
   color: var(--accent);
 }
 
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 20px; /* 1cm gap between logo and search button (38px ≈ 1cm) */
+  margin-top: 60px;
+  margin-right: 05px; /* Moved down by about 1cm (20px) */
+}
+
 .brand-logo {
   /* CHANGED: control by height, auto width; no extra right spacing */
-  height: 120px;           /* try 52–56px if you want it bigger */
+  height: 105px;           /* reduced height to make room for search button */
   width: auto;
   object-fit: contain;
   display: block;
-  margin-right: 0;
+  margin-top: 01px;
+}
+
+.global-search-btn {
+  background: #4f46e5;
+  border: 1px solid #4338ca;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(79,70,229,0.2);
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.global-search-btn:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(79,70,229,0.3);
+}
+
+.global-search-bar {
+  background: #fff;
+  border-bottom: 1px solid var(--hairline);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.global-search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.global-search-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+
+.close-search-btn {
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.close-search-btn:hover {
+  background: #c81e1e;
+  transform: scale(1.05);
 }
 
 /* ===== Main area ===== */

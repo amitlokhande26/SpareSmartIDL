@@ -49,7 +49,7 @@ const cl2Order = [
   "Palletiser",
 ];
 
-export default function InventoryApp() {
+export default function InventoryApp({ globalSearchQuery = "" }) {
   const [data, setData] = useState(initialData);
   const [selectedLine, setSelectedLine] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
@@ -157,15 +157,46 @@ export default function InventoryApp() {
     return data.parts.filter((p) => p.machineId === selectedMachine.id);
   }, [data.parts, selectedMachine]);
 
+  // Global search function
+  const globalSearch = useMemo(() => {
+    if (!globalSearchQuery) return { lines: [], machines: [], parts: [], checkweighers: [] };
+    
+    const query = globalSearchQuery.toLowerCase();
+    const results = {
+      lines: data.lines.filter(line => 
+        line.name.toLowerCase().includes(query)
+      ),
+      machines: data.machines.filter(machine => 
+        machine.name.toLowerCase().includes(query)
+      ),
+      parts: data.parts.filter(part => 
+        (part.name || "").toLowerCase().includes(query) ||
+        (part.partNumber || "").toLowerCase().includes(query) ||
+        (part.location || "").toLowerCase().includes(query) ||
+        (part.others || "").toLowerCase().includes(query)
+      ),
+      checkweighers: data.checkweighers.filter(cw => 
+        cw.name.toLowerCase().includes(query)
+      )
+    };
+    return results;
+  }, [data, globalSearchQuery]);
+
   // Search filters
   const machinesFiltered = useMemo(() => {
+    if (globalSearchQuery) {
+      return globalSearch.machines.filter((m) => !selectedLine || m.lineId === selectedLine.id);
+    }
     if (!machineQuery) return machines;
     return machines.filter((m) =>
       m.name.toLowerCase().includes(machineQuery.toLowerCase())
     );
-  }, [machines, machineQuery]);
+  }, [machines, machineQuery, globalSearchQuery, globalSearch.machines, selectedLine]);
 
   const partsFiltered = useMemo(() => {
+    if (globalSearchQuery) {
+      return globalSearch.parts.filter((p) => !selectedMachine || p.machineId === selectedMachine.id);
+    }
     if (!partQuery) return parts;
     const q = partQuery.toLowerCase();
     return parts.filter(
@@ -175,7 +206,7 @@ export default function InventoryApp() {
         (p.location || "").toLowerCase().includes(q) ||
         (p.others || "").toLowerCase().includes(q)
     );
-  }, [parts, partQuery]);
+  }, [parts, partQuery, globalSearchQuery, globalSearch.parts, selectedMachine]);
 
   // Checkweighers for selected line
   const checkweighers = useMemo(() => {
@@ -327,6 +358,136 @@ export default function InventoryApp() {
             Signed in as {authUser.username} — Logout
           </button>
         </div>
+
+        {/* Global Search Results */}
+        {globalSearchQuery && (
+          <div className="card">
+            <h2 className="card-title">
+              🔍 Global Search Results for "{globalSearchQuery}"
+            </h2>
+            
+            {/* Lines Results */}
+            {globalSearch.lines.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#4f46e5', marginBottom: 8 }}>Lines ({globalSearch.lines.length})</h3>
+                <div className="btn-group">
+                  {globalSearch.lines.map((line) => (
+                    <button
+                      key={line.id}
+                      onClick={() => {
+                        setSelectedLine(line);
+                        setSelectedMachine(null);
+                        setViewMode("machines");
+                      }}
+                      className="pill-btn"
+                    >
+                      {highlight(line.name, globalSearchQuery)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Machines Results */}
+            {globalSearch.machines.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#4f46e5', marginBottom: 8 }}>Machines ({globalSearch.machines.length})</h3>
+                <div className="btn-group">
+                  {globalSearch.machines.map((machine) => {
+                    const line = data.lines.find(l => l.id === machine.lineId);
+                    return (
+                      <button
+                        key={machine.id}
+                        onClick={() => {
+                          setSelectedLine(line);
+                          setSelectedMachine(machine);
+                          setViewMode("machines");
+                        }}
+                        className="pill-btn"
+                        title={`${machine.name} (${line?.name || 'Unknown Line'})`}
+                      >
+                        {highlight(machine.name, globalSearchQuery)}
+                        {line && <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 4 }}>({line.name})</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Parts Results */}
+            {globalSearch.parts.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#4f46e5', marginBottom: 8 }}>Parts ({globalSearch.parts.length})</h3>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Part Number</th>
+                        <th>Machine</th>
+                        <th>Line</th>
+                        <th>Location</th>
+                        <th>Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {globalSearch.parts.map((part, idx) => {
+                        const machine = data.machines.find(m => m.id === part.machineId);
+                        const line = machine ? data.lines.find(l => l.id === machine.lineId) : null;
+                        return (
+                          <tr key={part.id} className={idx % 2 ? "row-alt" : ""}>
+                            <td>{highlight(part.name || "", globalSearchQuery)}</td>
+                            <td>{highlight(part.partNumber || "", globalSearchQuery)}</td>
+                            <td>{machine?.name || 'Unknown'}</td>
+                            <td>{line?.name || 'Unknown'}</td>
+                            <td>{highlight(part.location || "", globalSearchQuery)}</td>
+                            <td className="td-center">{part.qty || 0}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Checkweighers Results */}
+            {globalSearch.checkweighers.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#4f46e5', marginBottom: 8 }}>Checkweighers ({globalSearch.checkweighers.length})</h3>
+                <div className="btn-group">
+                  {globalSearch.checkweighers.map((cw) => {
+                    const line = data.lines.find(l => l.id === cw.lineId);
+                    return (
+                      <button
+                        key={cw.id}
+                        onClick={() => {
+                          setSelectedLine(line);
+                          setSelectedMachine(null);
+                          setViewMode("checkweighers");
+                        }}
+                        className="pill-btn"
+                        title={`${cw.name} (${line?.name || 'Unknown Line'})`}
+                      >
+                        {highlight(cw.name, globalSearchQuery)}
+                        {line && <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 4 }}>({line.name})</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* No Results */}
+            {globalSearch.lines.length === 0 && globalSearch.machines.length === 0 && 
+             globalSearch.parts.length === 0 && globalSearch.checkweighers.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                No results found for "{globalSearchQuery}"
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Line Selection */}
         <div className="card">
