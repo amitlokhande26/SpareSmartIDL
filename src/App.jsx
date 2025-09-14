@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Search } from "lucide-react";
-import InventoryApp from "./components/InventoryApp"; // keep if you have it; otherwise it'll still render the header
+import InventoryAppSupabase from "./components/InventoryAppSupabase"; // Supabase version
 import "./style.css"; // make sure this exists (see below)
 
 export default function App() {
@@ -62,14 +62,7 @@ export default function App() {
 
       {/* Main content */}
       <main className="app-main">
-        {typeof InventoryApp === "function" ? (
-          <InventoryApp globalSearchQuery={globalSearchQuery} />
-        ) : (
-          <div className="placeholder">
-            <h2>Your app content goes here</h2>
-            <p>If InventoryApp is missing, create it at <code>src/components/InventoryApp.jsx</code>.</p>
-          </div>
-        )}
+        <InventoryAppSupabase globalSearchQuery={globalSearchQuery} />
       </main>
     </div>
   );
