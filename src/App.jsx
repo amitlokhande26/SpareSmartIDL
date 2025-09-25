@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Search } from "lucide-react";
-import InventoryApp from "./components/InventoryApp"; // keep if you have it; otherwise it'll still render the header
+import InventoryApp from "./components/InventoryApp"; // Original component
 import "./style.css"; // make sure this exists (see below)
 
 export default function App() {

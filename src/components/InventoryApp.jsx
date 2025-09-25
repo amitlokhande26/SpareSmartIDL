@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Plus, Trash2, Package, Layers, Wrench, Scale } from "lucide-react";
+import { useInventory } from '../hooks/useInventory.js';
 
 /** ----- Initial Data ----- **/
 const initialData = {
@@ -50,6 +51,30 @@ const cl2Order = [
 ];
 
 export default function InventoryApp({ globalSearchQuery = "" }) {
+  // Supabase integration
+  const {
+    parts: supabaseParts,
+    machines: supabaseMachines,
+    lines: supabaseLines,
+    checkweighers: supabaseCheckweighers,
+    loading,
+    error,
+    createPart: createSupabasePart,
+    updatePart: updateSupabasePart,
+    deletePart: deleteSupabasePart,
+    createMachine: createSupabaseMachine,
+    updateMachine: updateSupabaseMachine,
+    deleteMachine: deleteSupabaseMachine,
+    createLine: createSupabaseLine,
+    updateLine: updateSupabaseLine,
+    deleteLine: deleteSupabaseLine,
+    createCheckweigher: createSupabaseCheckweigher,
+    updateCheckweigher: updateSupabaseCheckweigher,
+    deleteCheckweigher: deleteSupabaseCheckweigher,
+    globalSearch: supabaseGlobalSearch
+  } = useInventory();
+
+  // Local state for UI (preserving original behavior)
   const [data, setData] = useState(initialData);
   const [selectedLine, setSelectedLine] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
@@ -134,7 +159,66 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
     nextDue: "",
   });
 
-  const lines = data.lines;
+  // Sync Supabase data with local state
+  useEffect(() => {
+    if (supabaseLines && supabaseMachines && supabaseParts && supabaseCheckweighers) {
+      // Convert Supabase data to match your original format
+      const convertedLines = supabaseLines.map(line => ({
+        id: line.id,
+        name: line.name,
+        created_at: line.created_at
+      }));
+      
+      const convertedMachines = supabaseMachines.map(machine => ({
+        id: machine.id,
+        name: machine.name,
+        lineId: machine.line_id,
+        created_at: machine.created_at
+      }));
+      
+      const convertedParts = supabaseParts.map(part => ({
+        id: part.id,
+        machineId: part.machine_id,
+        name: part.name,
+        partNumber: part.part_number || '',
+        qty: part.stock_quantity || 0,
+        minQuantity: part.min_stock_level || 0,
+        location: part.location || '',
+        lastChecked: part.last_checked || '',
+        nextDue: part.next_due || '',
+        cost: part.cost || '',
+        others: part.others || '',
+        lowStock: (part.stock_quantity || 0) < (part.min_stock_level || 0)
+      }));
+      
+      const convertedCheckweighers = supabaseCheckweighers.map(cw => ({
+        id: cw.id,
+        lineId: cw.line_id,
+        name: cw.name,
+        lastCalibrated: cw.last_calibrated || '',
+        nextDue: cw.next_due || ''
+      }));
+
+      setData({
+        lines: convertedLines.length > 0 ? convertedLines : initialData.lines,
+        machines: convertedMachines,
+        parts: convertedParts,
+        checkweighers: convertedCheckweighers
+      });
+    }
+  }, [supabaseLines, supabaseMachines, supabaseParts, supabaseCheckweighers]);
+
+  // Sort lines by creation order (newest at the end)
+  const lines = useMemo(() => {
+    return [...data.lines].sort((a, b) => {
+      // If lines have created_at timestamps, use those
+      if (a.created_at && b.created_at) {
+        return new Date(a.created_at) - new Date(b.created_at);
+      }
+      // Otherwise, maintain insertion order (newest at the end)
+      return 0;
+    });
+  }, [data.lines]);
 
   // Machines for the selected line, sorted with Canning Line 2 order if applicable
   const machines = useMemo(() => {
@@ -151,7 +235,15 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
       });
     }
 
-    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+    // For other lines, sort by creation order (newest at the end)
+    return [...list].sort((a, b) => {
+      // If machines have created_at timestamps, use those
+      if (a.created_at && b.created_at) {
+        return new Date(a.created_at) - new Date(b.created_at);
+      }
+      // Otherwise, maintain insertion order (newest at the end)
+      return 0;
+    });
   }, [data.machines, selectedLine]);
 
   // Parts for the selected machine
@@ -286,18 +378,66 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
     );
   }, [aggregatedParts, aggregatedPartQuery]);
 
+  /** ----- Lines ----- **/
+  const addLine = async () => {
+    const name = prompt("Enter line name:");
+    if (!name) return;
+
+    try {
+      // Create in Supabase
+      const supabaseLine = await createSupabaseLine({
+        name: name.trim(),
+        description: '',
+        location: '',
+        capacity: null,
+        efficiency: null
+      });
+
+      // Update local state
+      const newLine = { 
+        id: supabaseLine.id, 
+        name: name.trim(),
+        created_at: supabaseLine.created_at
+      };
+      setData((prev) => ({ ...prev, lines: [...prev.lines, newLine] }));
+    } catch (error) {
+      console.error('Error creating line:', error);
+      alert('Failed to create line. Please try again.');
+    }
+  };
+
   /** ----- Machines ----- **/
-  const addMachine = () => {
+  const addMachine = async () => {
     if (!selectedLine) return;
     const name = prompt("Enter machine name:");
     if (!name) return;
 
-    const newMachine = { id: Date.now(), name: name.trim(), lineId: selectedLine.id };
-    setData((prev) => ({ ...prev, machines: [...prev.machines, newMachine] }));
+    try {
+      // Create in Supabase
+      const supabaseMachine = await createSupabaseMachine({
+        name: name.trim(),
+        line_id: selectedLine.id,
+        description: '',
+        status: 'active',
+        location: ''
+      });
+
+      // Update local state
+      const newMachine = { 
+        id: supabaseMachine.id, 
+        name: name.trim(), 
+        lineId: selectedLine.id,
+        created_at: supabaseMachine.created_at
+      };
+      setData((prev) => ({ ...prev, machines: [...prev.machines, newMachine] }));
+    } catch (error) {
+      console.error('Error creating machine:', error);
+      alert('Failed to create machine. Please try again.');
+    }
   };
 
   /** ----- Parts ----- **/
-  const addPart = () => {
+  const addPart = async () => {
     if (!selectedMachine) return;
 
     if (!newPart.name.trim()) {
@@ -315,92 +455,250 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
       return;
     }
 
-    const payload = {
-      id: Date.now(),
-      machineId: selectedMachine.id,
-      name: newPart.name.trim(),
-      partNumber: newPart.partNumber.trim(),
-      qty: Number(newPart.qty || 0),
-      minQuantity: minQuantity,
-      location: newPart.location.trim(),
-      lastChecked: newPart.lastChecked || "",
-      nextDue: newPart.nextDue || "",
-      cost: newPart.cost === "" ? "" : Number(newPart.cost),
-      others: newPart.others.trim(),
-      lowStock: false, // Will be calculated based on qty vs minQuantity
-    };
+    try {
+      // Create in Supabase
+      const supabasePart = await createSupabasePart({
+        name: newPart.name.trim(),
+        part_number: newPart.partNumber.trim(),
+        machine_id: selectedMachine.id,
+        description: newPart.others.trim(),
+        stock_quantity: Number(newPart.qty || 0),
+        min_stock_level: minQuantity,
+        location: newPart.location.trim(),
+        cost: newPart.cost === "" ? null : Number(newPart.cost),
+        last_checked: newPart.lastChecked || null,
+        next_due: newPart.nextDue || null,
+        others: newPart.others.trim()
+      });
 
-    // Calculate low stock status
-    payload.lowStock = payload.qty < payload.minQuantity;
+      // Update local state
+      const payload = {
+        id: supabasePart.id,
+        machineId: selectedMachine.id,
+        name: newPart.name.trim(),
+        partNumber: newPart.partNumber.trim(),
+        qty: Number(newPart.qty || 0),
+        minQuantity: minQuantity,
+        location: newPart.location.trim(),
+        lastChecked: newPart.lastChecked || "",
+        nextDue: newPart.nextDue || "",
+        cost: newPart.cost === "" ? "" : Number(newPart.cost),
+        others: newPart.others.trim(),
+        lowStock: Number(newPart.qty || 0) < minQuantity,
+      };
 
-    setData((prev) => ({ ...prev, parts: [...prev.parts, payload] }));
-    setNewPart({
-      name: "",
-      partNumber: "",
-      qty: "",
-      minQuantity: "",
-      location: "",
-      lastChecked: "",
-      nextDue: "",
-      cost: "",
-      others: "",
-    });
+      setData((prev) => ({ ...prev, parts: [...prev.parts, payload] }));
+      setNewPart({
+        name: "",
+        partNumber: "",
+        qty: "",
+        minQuantity: "",
+        location: "",
+        lastChecked: "",
+        nextDue: "",
+        cost: "",
+        others: "",
+      });
+    } catch (error) {
+      console.error('Error creating part:', error);
+      alert('Failed to create part. Please try again.');
+    }
   };
 
-  const updatePart = (id, field, value) => {
-    setData((prev) => ({
-      ...prev,
-      parts: prev.parts.map((p) => {
-        if (p.id === id) {
-          const updatedPart = { ...p, [field]: value };
-          // Recalculate low stock status when quantity changes
-          if (field === 'qty') {
-            updatedPart.lowStock = Number(value) < (p.minQuantity || 0);
-          }
-          return updatedPart;
+  const updatePart = async (id, field, value) => {
+    try {
+      // Update in Supabase
+      const part = data.parts.find(p => p.id === id);
+      if (part) {
+        const updateData = {};
+        switch (field) {
+          case 'qty':
+            updateData.stock_quantity = Number(value);
+            break;
+          case 'lastChecked':
+            updateData.last_checked = value;
+            break;
+          case 'nextDue':
+            updateData.next_due = value;
+            break;
+          case 'cost':
+            updateData.cost = value === "" ? null : Number(value);
+            break;
+          default:
+            break;
         }
-        return p;
-      }),
-    }));
+        
+        if (Object.keys(updateData).length > 0) {
+          await updateSupabasePart(id, updateData);
+        }
+      }
+
+      // Update local state
+      setData((prev) => ({
+        ...prev,
+        parts: prev.parts.map((p) => {
+          if (p.id === id) {
+            const updatedPart = { ...p, [field]: value };
+            // Recalculate low stock status when quantity changes
+            if (field === 'qty') {
+              updatedPart.lowStock = Number(value) < (p.minQuantity || 0);
+            }
+            return updatedPart;
+          }
+          return p;
+        }),
+      }));
+    } catch (error) {
+      console.error('Error updating part:', error);
+      alert('Failed to update part. Please try again.');
+    }
   };
 
-  const deletePart = (id) => {
-    setData((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }));
+  const deletePart = async (id) => {
+    try {
+      // Delete from Supabase
+      await deleteSupabasePart(id);
+      
+      // Update local state
+      setData((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }));
+    } catch (error) {
+      console.error('Error deleting part:', error);
+      alert('Failed to delete part. Please try again.');
+    }
   };
 
   /** ----- Checkweighers CRUD ----- **/
-  const addCheckweigher = () => {
+  const addCheckweigher = async () => {
     if (!selectedLine) return;
     if (!newCW.name.trim()) {
       alert("Please enter Checkweigher name");
       return;
     }
-    const cw = {
-      id: Date.now(),
-      lineId: selectedLine.id,
-      name: newCW.name.trim(),
-      lastCalibrated: newCW.lastCalibrated || "",
-      nextDue: newCW.nextDue || "",
-    };
-    setData((prev) => ({ ...prev, checkweighers: [...prev.checkweighers, cw] }));
-    setNewCW({ name: "", lastCalibrated: "", nextDue: "" });
+
+    try {
+      // Create in Supabase
+      const supabaseCW = await createSupabaseCheckweigher({
+        name: newCW.name.trim(),
+        line_id: selectedLine.id,
+        last_calibrated: newCW.lastCalibrated || null,
+        next_due: newCW.nextDue || null
+      });
+
+      // Update local state
+      const cw = {
+        id: supabaseCW.id,
+        lineId: selectedLine.id,
+        name: newCW.name.trim(),
+        lastCalibrated: newCW.lastCalibrated || "",
+        nextDue: newCW.nextDue || "",
+      };
+      setData((prev) => ({ ...prev, checkweighers: [...prev.checkweighers, cw] }));
+      setNewCW({ name: "", lastCalibrated: "", nextDue: "" });
+    } catch (error) {
+      console.error('Error creating checkweigher:', error);
+      alert('Failed to create checkweigher. Please try again.');
+    }
   };
 
-  const updateCheckweigher = (id, field, value) => {
-    setData((prev) => ({
-      ...prev,
-      checkweighers: prev.checkweighers.map((c) =>
-        c.id === id ? { ...c, [field]: value } : c
-      ),
-    }));
+  const updateCheckweigher = async (id, field, value) => {
+    try {
+      // Update in Supabase
+      const updateData = {};
+      switch (field) {
+        case 'name':
+          updateData.name = value;
+          break;
+        case 'lastCalibrated':
+          updateData.last_calibrated = value;
+          break;
+        case 'nextDue':
+          updateData.next_due = value;
+          break;
+        default:
+          break;
+      }
+      
+      if (Object.keys(updateData).length > 0) {
+        await updateSupabaseCheckweigher(id, updateData);
+      }
+
+      // Update local state
+      setData((prev) => ({
+        ...prev,
+        checkweighers: prev.checkweighers.map((c) =>
+          c.id === id ? { ...c, [field]: value } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Error updating checkweigher:', error);
+      alert('Failed to update checkweigher. Please try again.');
+    }
   };
 
-  const deleteCheckweigher = (id) => {
-    setData((prev) => ({
-      ...prev,
-      checkweighers: prev.checkweighers.filter((c) => c.id !== id),
-    }));
+  const deleteCheckweigher = async (id) => {
+    try {
+      // Delete from Supabase
+      await deleteSupabaseCheckweigher(id);
+      
+      // Update local state
+      setData((prev) => ({
+        ...prev,
+        checkweighers: prev.checkweighers.filter((c) => c.id !== id),
+      }));
+    } catch (error) {
+      console.error('Error deleting checkweigher:', error);
+      alert('Failed to delete checkweigher. Please try again.');
+    }
   };
+
+  // Error state
+  if (error) {
+    return (
+      <div className="page-shell">
+        <div className="container">
+          <div className="card" style={{ maxWidth: 600, margin: "64px auto" }}>
+            <h1 className="page-title" style={{ textAlign: "center", color: "#dc2626" }}>
+              <Package size={28} className="title-icon" /> Database Connection Error
+            </h1>
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <p style={{ color: "#64748b", marginBottom: "16px" }}>
+                Unable to connect to the database. Please check your Supabase configuration.
+              </p>
+              <p style={{ fontSize: "14px", color: "#64748b" }}>
+                Error: {error}
+              </p>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="pill-btn primary"
+              >
+                Retry Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="page-shell">
+        <div className="container">
+          <div className="card" style={{ maxWidth: 400, margin: "64px auto" }}>
+            <h1 className="page-title" style={{ textAlign: "center" }}>
+              <Package size={28} className="title-icon" /> Loading Inventory...
+            </h1>
+            <div style={{ textAlign: "center", color: "#64748b" }}>
+              <p>Please wait while we load your inventory data from the database.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Login screen
   if (!authUser) {
@@ -712,6 +1010,9 @@ export default function InventoryApp({ globalSearchQuery = "" }) {
                 </button>
               );
             })}
+            <button onClick={addLine} className="pill-btn is-action">
+              <Plus size={16} /> Add Line
+            </button>
           </div>
         </div>
 
